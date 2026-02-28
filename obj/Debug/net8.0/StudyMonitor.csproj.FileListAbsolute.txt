@@ -6,7 +6,6 @@ C:\Users\SIBIN\StudyMonitor\bin\Debug\net8.0\StudyMonitor.runtimeconfig.json
 C:\Users\SIBIN\StudyMonitor\bin\Debug\net8.0\StudyMonitor.dll
 C:\Users\SIBIN\StudyMonitor\bin\Debug\net8.0\StudyMonitor.pdb
 C:\Users\SIBIN\StudyMonitor\bin\Debug\net8.0\Newtonsoft.Json.dll
-C:\Users\SIBIN\StudyMonitor\bin\Debug\net8.0\System.Net.WebSockets.WebSocketProtocol.dll
 C:\Users\SIBIN\StudyMonitor\obj\Debug\net8.0\StudyMonitor.csproj.AssemblyReference.cache
 C:\Users\SIBIN\StudyMonitor\obj\Debug\net8.0\StudyMonitor.GeneratedMSBuildEditorConfig.editorconfig
 C:\Users\SIBIN\StudyMonitor\obj\Debug\net8.0\StudyMonitor.AssemblyInfoInputs.cache
@@ -29,3 +28,7 @@ C:\Users\SIBIN\StudyMonitor\obj\Debug\net8.0\refint\StudyMonitor.dll
 C:\Users\SIBIN\StudyMonitor\obj\Debug\net8.0\StudyMonitor.pdb
 C:\Users\SIBIN\StudyMonitor\obj\Debug\net8.0\StudyMonitor.genruntimeconfig.cache
 C:\Users\SIBIN\StudyMonitor\obj\Debug\net8.0\ref\StudyMonitor.dll
+C:\Users\SIBIN\StudyMonitor\bin\Debug\net8.0\nuget.config
+C:\Users\SIBIN\StudyMonitor\bin\Debug\net8.0\global.json
+C:\Users\SIBIN\StudyMonitor\bin\Debug\net8.0\railway.json
+C:\Users\SIBIN\StudyMonitor\obj\Debug\net8.0\StudyMonitor.sourcelink.json

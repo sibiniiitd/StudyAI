@@ -12,8 +12,8 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<StudyMonitor.Services.SessionStorageService>();
 
 // Railway / cloud port binding
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+// var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+// builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 var app = builder.Build();
 

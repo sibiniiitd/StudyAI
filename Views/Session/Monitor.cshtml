@@ -213,15 +213,33 @@ setInterval(updateTimer, 1000);
 // --- CAMERA & AI SIMULATION ---
 async function initCamera() {
     try {
+        // Load the AI models first
+        const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights';
+        
+        document.getElementById('faceLabel').textContent = 'Loading AI Models...';
+        
+        await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+        ]);
+
+        // Start camera after models are loaded
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        document.getElementById('cameraFeed').srcObject = stream;
-        document.getElementById('faceLabel').textContent = 'Face Detected ✓';
-        document.getElementById('faceBox').style.borderColor = '#00ff9d';
-        startAIAnalysis();
+        const video = document.getElementById('cameraFeed');
+        video.srcObject = stream;
+
+        video.addEventListener('play', () => {
+            document.getElementById('faceLabel').textContent = 'AI Active ✓';
+            document.getElementById('faceBox').style.borderColor = '#00ff9d';
+            startAIAnalysis(); // start only when video is playing
+        });
+
     } catch(e) {
+        console.error('Camera/Model error:', e);
         document.getElementById('faceLabel').textContent = 'Camera Unavailable';
         document.getElementById('faceBox').style.borderColor = '#ff4444';
-        startAIAnalysis(); // Still run simulation
+        startSimulationFallback(); // fall back to simulation if camera denied
     }
 }
 
@@ -242,48 +260,134 @@ const tips = [
 ];
 
 let tipIndex = 0;
-function runAIAnalysis() {
-    if (!isSessionActive) return;
+let analysisTickCount = 0;
 
-    // Simulate AI behavior detection
-    const isLooking = Math.random() > 0.15;
-    const hasPhone = Math.random() < 0.05;
-    const isYawning = Math.random() < 0.04;
-    const emotionIdx = Math.floor(Math.random() * emotions.length);
-    
-    let score = 75;
-    if (!isLooking) { score -= 30; lookAways++; document.getElementById('lookCount').textContent = lookAways; }
-    if (hasPhone) { score -= 25; phoneDetections++; document.getElementById('phoneCount').textContent = phoneDetections; }
-    if (isYawning) { score -= 10; yawnCount++; document.getElementById('yawnCount').textContent = yawnCount; }
-    score = Math.max(10, Math.min(100, score + (Math.random() * 20 - 10)));
-    
+async function runAIAnalysis() {
+    if (!isSessionActive) return;
+    analysisTickCount++;
+
+    const video = document.getElementById('cameraFeed');
+
+    // Run face detection + landmarks + expressions on the actual video frame
+    const detection = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceExpressions();
+
+    let isLooking = false;
+    let isYawning = false;
+    let hasPhone = false;
+    let emotionLabel = '😐 Neutral';
+    let score = 80;
+
+    if (!detection) {
+        // No face detected = looking away
+        isLooking = false;
+        score = 40;
+        addEventToLog('👀 Face not detected — looking away?', 'warning');
+        lookAways++;
+        document.getElementById('lookCount').textContent = lookAways;
+
+    } else {
+        isLooking = true;
+
+        // --- REAL Yawn Detection using Mouth Aspect Ratio (MAR) ---
+        // Landmarks 48-67 are mouth points
+        const mouth = detection.landmarks.getMouth();
+        
+        // Calculate mouth opening ratio
+        // Top lip to bottom lip distance vs mouth width
+        const topLip    = mouth[3];   // top center
+        const bottomLip = mouth[9];   // bottom center
+        const leftCorner  = mouth[0]; // left corner
+        const rightCorner = mouth[6]; // right corner
+
+        const mouthHeight = Math.abs(bottomLip.y - topLip.y);
+        const mouthWidth  = Math.abs(rightCorner.x - leftCorner.x);
+        const mar = mouthHeight / mouthWidth; // Mouth Aspect Ratio
+
+        // MAR > 0.5 means mouth is wide open = yawning
+        isYawning = mar > 0.5;
+
+        if (isYawning) {
+            yawnCount++;
+            document.getElementById('yawnCount').textContent = yawnCount;
+            score -= 15;
+            addEventToLog('🥱 Yawn detected — feeling tired?', 'warning');
+        }
+
+        // --- REAL Emotion Detection from neural network ---
+        const expressions = detection.expressions;
+        // expressions gives probabilities for: happy, sad, angry, fearful, disgusted, surprised, neutral
+        const dominantEmotion = Object.entries(expressions)
+            .sort((a, b) => b[1] - a[1])[0][0]; // get highest probability emotion
+
+        const emotionMap = {
+            happy:     '😊 Focused',
+            neutral:   '😐 Neutral',
+            surprised: '😮 Surprised',
+            sad:       '😟 Confused',
+            fearful:   '😰 Anxious',
+            disgusted: '😒 Distracted',
+            angry:     '😤 Frustrated'
+        };
+        emotionLabel = emotionMap[dominantEmotion] || '😐 Neutral';
+
+        // Distracted emotions reduce score
+        if (['sad', 'fearful', 'disgusted', 'angry'].includes(dominantEmotion)) {
+            score -= 10;
+        }
+    }
+
+    // Phone detection is still simulated (needs object detection model)
+    // To make this real, add TensorFlow.js COCO-SSD model
+    hasPhone = false;
+
+    // Final score with small noise
+    score = Math.max(10, Math.min(100, score + (Math.random() * 10 - 5)));
+
     focusScores.push(score);
     updateFocusUI(score);
     updateChartBars();
 
-    document.getElementById('emotionStat').textContent = emotions[emotionIdx];
+    document.getElementById('emotionStat').textContent = emotionLabel;
     document.getElementById('gazeStat').textContent = isLooking ? '👁 On Screen' : '👀 Looking Away';
 
-    let eventType = 'focus_normal';
-    let description = '';
-    let severity = 'info';
-
-    if (hasPhone) { eventType = 'phone_detected'; description = '📱 Phone usage detected!'; severity = 'alert'; }
-    else if (!isLooking) { eventType = 'look_away'; description = '👀 Looking away from screen'; severity = 'warning'; }
-    else if (isYawning) { eventType = 'yawn'; description = '🥱 Yawn detected — feeling tired?'; severity = 'info'; }
-    
-    if (description) addEventToLog(description, severity);
-
-    // Update tip every 5 cycles
-    if (focusScores.length % 5 === 0) {
+    // Update AI tip every 5 cycles
+    if (analysisTickCount % 5 === 0) {
         tipIndex = (tipIndex + 1) % tips.length;
         document.getElementById('tipText').textContent = tips[tipIndex];
     }
 
-    // Send to server
-    sendEvent(eventType, description || 'Focus snapshot', score, isLooking, hasPhone, isYawning, emotions[emotionIdx].replace(/[^\w\s]/g, '').trim());
+    let eventType = isLooking ? (isYawning ? 'yawn' : 'focus_normal') : 'look_away';
+    let description = isLooking ? (isYawning ? '🥱 Yawn detected' : '') : '👀 Looking away from screen';
+
+    sendEvent(eventType, description || 'Focus snapshot', score, isLooking, hasPhone, isYawning, emotionLabel.replace(/[^\w\s]/g, '').trim());
 }
 
+function startSimulationFallback() {
+    addEventToLog('⚠ Running in simulation mode — camera not available', 'warning');
+    let yawnCooldown = 0;
+    let phoneCooldown = 0;
+    analysisInterval = setInterval(() => {
+        analysisTickCount++;
+        yawnCooldown = Math.max(0, yawnCooldown - 1);
+        phoneCooldown = Math.max(0, phoneCooldown - 1);
+        const isLooking = Math.random() > 0.20;
+        const hasPhone  = phoneCooldown === 0 && Math.random() < 0.15;
+        const isYawning = yawnCooldown  === 0 && Math.random() < 0.18;
+        if (hasPhone)  phoneCooldown = Math.floor(Math.random() * 10) + 10;
+        if (isYawning) yawnCooldown  = Math.floor(Math.random() * 8)  + 7;
+        let score = 80;
+        if (!isLooking) { score -= 25; lookAways++;       document.getElementById('lookCount').textContent  = lookAways; }
+        if (hasPhone)   { score -= 35; phoneDetections++; document.getElementById('phoneCount').textContent = phoneDetections; }
+        if (isYawning)  { score -= 15; yawnCount++;       document.getElementById('yawnCount').textContent  = yawnCount; }
+        score = Math.max(10, Math.min(100, score + (Math.random() * 16 - 8)));
+        focusScores.push(score);
+        updateFocusUI(score);
+        updateChartBars();
+    }, 3000);
+}
 // Tab switch detection
 document.addEventListener('visibilitychange', () => {
     if (document.hidden && isSessionActive) {
