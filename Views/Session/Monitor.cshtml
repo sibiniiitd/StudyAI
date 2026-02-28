@@ -1,0 +1,406 @@
+@model StudyMonitor.Models.StudySession
+@{
+    ViewData["Title"] = "Live Session";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="monitor-page">
+    <div class="noise"></div>
+    
+    <!-- Top Bar -->
+    <div class="monitor-topbar">
+        <div class="session-info">
+            <span class="logo">◈ StudyAI</span>
+            <span class="session-subject">@Model.SubjectName</span>
+        </div>
+        <div class="timer-display" id="timerDisplay">00:00:00</div>
+        <div class="topbar-right">
+            <div class="target-label">Target: @Model.TargetMinutes min</div>
+            <button class="end-btn" id="endSessionBtn">End Session</button>
+        </div>
+    </div>
+
+    <div class="monitor-grid">
+        <!-- Camera Feed -->
+        <div class="monitor-panel camera-panel">
+            <div class="panel-header">
+                <span class="panel-title">AI Vision Monitor</span>
+                <div class="live-dot"><span class="dot-pulse"></span> LIVE</div>
+            </div>
+            <div class="camera-container">
+                <video id="cameraFeed" autoplay muted playsinline></video>
+                <canvas id="analysisCanvas" style="display:none"></canvas>
+                <div class="camera-overlay">
+                    <div class="face-box" id="faceBox">
+                        <span class="face-label" id="faceLabel">Detecting...</span>
+                    </div>
+                </div>
+                <div class="camera-stats">
+                    <div class="cam-stat" id="emotionStat">😐 Neutral</div>
+                    <div class="cam-stat" id="gazeStat">👁 On Screen</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Focus Score -->
+        <div class="monitor-panel focus-panel">
+            <div class="panel-header">
+                <span class="panel-title">Focus Score</span>
+                <span class="score-badge" id="scoreBadge">ANALYZING</span>
+            </div>
+            <div class="score-display">
+                <div class="score-ring-wrap">
+                    <svg class="score-ring" viewBox="0 0 120 120">
+                        <circle class="ring-bg" cx="60" cy="60" r="50" />
+                        <circle class="ring-fill" id="ringFill" cx="60" cy="60" r="50" 
+                                stroke-dasharray="314" stroke-dashoffset="314" />
+                    </svg>
+                    <div class="score-number" id="scoreNumber">--</div>
+                </div>
+                <div class="score-label" id="scoreLabel">Warming up...</div>
+            </div>
+            <div class="mini-stats">
+                <div class="mini-stat">
+                    <span class="ms-icon">🔄</span>
+                    <span class="ms-val" id="tabCount">0</span>
+                    <span class="ms-label">Tab Switches</span>
+                </div>
+                <div class="mini-stat">
+                    <span class="ms-icon">👀</span>
+                    <span class="ms-val" id="lookCount">0</span>
+                    <span class="ms-label">Look Aways</span>
+                </div>
+                <div class="mini-stat">
+                    <span class="ms-icon">📱</span>
+                    <span class="ms-val" id="phoneCount">0</span>
+                    <span class="ms-label">Phone Use</span>
+                </div>
+                <div class="mini-stat">
+                    <span class="ms-icon">🥱</span>
+                    <span class="ms-val" id="yawnCount">0</span>
+                    <span class="ms-label">Yawns</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert Log -->
+        <div class="monitor-panel alerts-panel">
+            <div class="panel-header">
+                <span class="panel-title">Activity Log</span>
+                <span class="log-count" id="logCount">0 events</span>
+            </div>
+            <div class="alerts-list" id="alertsList">
+                <div class="alert-placeholder">AI monitoring active — events will appear here</div>
+            </div>
+        </div>
+
+        <!-- Focus Timeline -->
+        <div class="monitor-panel timeline-panel">
+            <div class="panel-header">
+                <span class="panel-title">Focus Timeline</span>
+                <span class="tl-label">Last 30 snapshots</span>
+            </div>
+            <div class="timeline-chart">
+                <div class="chart-bars" id="chartBars">
+                    <div class="chart-empty">Collecting data...</div>
+                </div>
+                <div class="chart-labels">
+                    <span>Low</span><span>Medium</span><span>High</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="monitor-panel progress-panel">
+            <div class="panel-header">
+                <span class="panel-title">Session Progress</span>
+                <span id="progressPct">0%</span>
+            </div>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-milestones">
+                <span>Start</span>
+                <span>25%</span>
+                <span>50%</span>
+                <span>75%</span>
+                <span>Done</span>
+            </div>
+            <div class="time-remaining">
+                <span class="tr-label">Time Remaining</span>
+                <span class="tr-value" id="timeRemaining">--:--</span>
+            </div>
+        </div>
+
+        <!-- AI Tip Box -->
+        <div class="monitor-panel tip-panel">
+            <div class="panel-header">
+                <span class="panel-title">AI Coach</span>
+                <span class="ai-badge">🤖 Live</span>
+            </div>
+            <div class="tip-content" id="tipContent">
+                <p class="tip-text" id="tipText">Getting started... stay focused and I'll guide you!</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- End Session Modal -->
+<div class="modal-overlay" id="endModal" style="display:none">
+    <div class="modal">
+        <div class="modal-icon">📊</div>
+        <h2>End Study Session?</h2>
+        <p>Your AI report will be generated based on the collected data.</p>
+        <div class="modal-actions">
+            <button class="modal-cancel" id="cancelEnd">Keep Studying</button>
+            <button class="modal-confirm" id="confirmEnd">Generate Report</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const SESSION_ID = '@Model.SessionId';
+const TARGET_MINUTES = @Model.TargetMinutes;
+const startTime = new Date(); // Use actual browser time when page loads
+
+// Counters
+let tabSwitches = 0, lookAways = 0, phoneDetections = 0, yawnCount = 0;
+let focusScores = [];
+let eventLog = [];
+let isSessionActive = true;
+let analysisInterval;
+
+// --- TIMER ---
+let sessionEnding = false; // prevent autoEnd firing multiple times
+
+function updateTimer() {
+    if (!isSessionActive) return;
+
+    const elapsed = Math.floor((Date.now() - startTime.getTime()) / 1000);
+
+    // Update clock display
+    const h = Math.floor(elapsed / 3600).toString().padStart(2, '0');
+    const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
+    const s = (elapsed % 60).toString().padStart(2, '0');
+    document.getElementById('timerDisplay').textContent = `${h}:${m}:${s}`;
+
+    // Update progress bar
+    const targetSeconds = TARGET_MINUTES * 60;
+    const pct = Math.min(100, (elapsed / targetSeconds) * 100);
+    const progressFill = document.getElementById('progressFill');
+    const progressPct  = document.getElementById('progressPct');
+    if (progressFill) progressFill.style.width = pct.toFixed(2) + '%';
+    if (progressPct)  progressPct.textContent  = Math.floor(pct) + '%';
+
+    // Update time remaining
+    const remaining = Math.max(0, targetSeconds - elapsed);
+    const rm = Math.floor(remaining / 60).toString().padStart(2, '0');
+    const rs = (remaining % 60).toString().padStart(2, '0');
+    const timeRemainingEl = document.getElementById('timeRemaining');
+    if (timeRemainingEl) timeRemainingEl.textContent = `${rm}:${rs}`;
+
+    // Auto-end when target reached
+    if (remaining === 0 && !sessionEnding) {
+        sessionEnding = true;
+        autoEndSession();
+    }
+}
+
+// Tick immediately so UI shows values at t=0, then every second
+updateTimer();
+setInterval(updateTimer, 1000);
+// --- CAMERA & AI SIMULATION ---
+async function initCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        document.getElementById('cameraFeed').srcObject = stream;
+        document.getElementById('faceLabel').textContent = 'Face Detected ✓';
+        document.getElementById('faceBox').style.borderColor = '#00ff9d';
+        startAIAnalysis();
+    } catch(e) {
+        document.getElementById('faceLabel').textContent = 'Camera Unavailable';
+        document.getElementById('faceBox').style.borderColor = '#ff4444';
+        startAIAnalysis(); // Still run simulation
+    }
+}
+
+function startAIAnalysis() {
+    analysisInterval = setInterval(runAIAnalysis, 3000);
+}
+
+const emotions = ['😊 Focused', '😐 Neutral', '🤔 Thinking', '😴 Tired', '😟 Confused'];
+const tips = [
+    "Great focus! Keep up the momentum. You're in the zone.",
+    "Try the 4-7-8 breathing technique if you feel tired.",
+    "Take a 5-min break every 25 mins to maintain peak focus.",
+    "Stay hydrated! Drink water to keep your brain sharp.",
+    "You're doing great! Stay away from your phone.",
+    "Try reading aloud to improve retention.",
+    "Break complex topics into smaller chunks for better understanding.",
+    "Close unnecessary browser tabs to minimize distractions."
+];
+
+let tipIndex = 0;
+function runAIAnalysis() {
+    if (!isSessionActive) return;
+
+    // Simulate AI behavior detection
+    const isLooking = Math.random() > 0.15;
+    const hasPhone = Math.random() < 0.05;
+    const isYawning = Math.random() < 0.04;
+    const emotionIdx = Math.floor(Math.random() * emotions.length);
+    
+    let score = 75;
+    if (!isLooking) { score -= 30; lookAways++; document.getElementById('lookCount').textContent = lookAways; }
+    if (hasPhone) { score -= 25; phoneDetections++; document.getElementById('phoneCount').textContent = phoneDetections; }
+    if (isYawning) { score -= 10; yawnCount++; document.getElementById('yawnCount').textContent = yawnCount; }
+    score = Math.max(10, Math.min(100, score + (Math.random() * 20 - 10)));
+    
+    focusScores.push(score);
+    updateFocusUI(score);
+    updateChartBars();
+
+    document.getElementById('emotionStat').textContent = emotions[emotionIdx];
+    document.getElementById('gazeStat').textContent = isLooking ? '👁 On Screen' : '👀 Looking Away';
+
+    let eventType = 'focus_normal';
+    let description = '';
+    let severity = 'info';
+
+    if (hasPhone) { eventType = 'phone_detected'; description = '📱 Phone usage detected!'; severity = 'alert'; }
+    else if (!isLooking) { eventType = 'look_away'; description = '👀 Looking away from screen'; severity = 'warning'; }
+    else if (isYawning) { eventType = 'yawn'; description = '🥱 Yawn detected — feeling tired?'; severity = 'info'; }
+    
+    if (description) addEventToLog(description, severity);
+
+    // Update tip every 5 cycles
+    if (focusScores.length % 5 === 0) {
+        tipIndex = (tipIndex + 1) % tips.length;
+        document.getElementById('tipText').textContent = tips[tipIndex];
+    }
+
+    // Send to server
+    sendEvent(eventType, description || 'Focus snapshot', score, isLooking, hasPhone, isYawning, emotions[emotionIdx].replace(/[^\w\s]/g, '').trim());
+}
+
+// Tab switch detection
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && isSessionActive) {
+        tabSwitches++;
+        document.getElementById('tabCount').textContent = tabSwitches;
+        addEventToLog('🔄 Tab switch detected', 'warning');
+        sendEvent('tab_switch', 'Tab switch detected', 
+            focusScores.length ? focusScores[focusScores.length-1] : 60, true, false, false, 'neutral');
+    }
+});
+
+function updateFocusUI(score) {
+    document.getElementById('scoreNumber').textContent = Math.round(score);
+    const offset = 314 - (314 * score / 100);
+    document.getElementById('ringFill').style.strokeDashoffset = offset;
+    
+    let color, label, badge;
+    if (score >= 80) { color = '#00ff9d'; label = 'Excellent Focus'; badge = 'EXCELLENT'; }
+    else if (score >= 60) { color = '#ffd93d'; label = 'Good Focus'; badge = 'GOOD'; }
+    else if (score >= 40) { color = '#ff9f43'; label = 'Moderate Focus'; badge = 'MODERATE'; }
+    else { color = '#ff4444'; label = 'Low Focus'; badge = 'DISTRACTED'; }
+    
+    document.getElementById('ringFill').style.stroke = color;
+    document.getElementById('scoreLabel').textContent = label;
+    document.getElementById('scoreBadge').textContent = badge;
+    document.getElementById('scoreBadge').style.background = color;
+    document.getElementById('scoreBadge').style.color = score >= 40 ? '#000' : '#fff';
+}
+
+function updateChartBars() {
+    const container = document.getElementById('chartBars');
+    const last30 = focusScores.slice(-30);
+    container.innerHTML = last30.map(s => {
+        const h = Math.max(4, (s / 100) * 80);
+        const c = s >= 80 ? '#00ff9d' : s >= 60 ? '#ffd93d' : s >= 40 ? '#ff9f43' : '#ff4444';
+        return `<div class="chart-bar" style="height:${h}px;background:${c}" title="${Math.round(s)}%"></div>`;
+    }).join('');
+}
+
+function addEventToLog(msg, severity) {
+    const list = document.getElementById('alertsList');
+    const placeholder = list.querySelector('.alert-placeholder');
+    if (placeholder) placeholder.remove();
+    
+    const now = new Date().toLocaleTimeString();
+    const item = document.createElement('div');
+    item.className = `alert-item alert-${severity}`;
+    item.innerHTML = `<span class="al-time">${now}</span><span class="al-msg">${msg}</span>`;
+    list.prepend(item);
+    
+    eventLog.push({ time: now, msg, severity });
+    document.getElementById('logCount').textContent = eventLog.length + ' events';
+    
+    // Keep only last 50
+    while (list.children.length > 50) list.removeChild(list.lastChild);
+}
+
+async function sendEvent(type, desc, score, looking, phone, yawning, emotion) {
+    try {
+        await fetch('/Session/TrackEvent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: SESSION_ID,
+                eventType: type,
+                description: desc,
+                focusScore: score,
+                isLookingAtScreen: looking,
+                phoneDetected: phone,
+                isYawning: yawning,
+                emotion: emotion
+            })
+        });
+    } catch(e) {}
+}
+
+// End session
+document.getElementById('endSessionBtn').addEventListener('click', () => {
+    document.getElementById('endModal').style.display = 'flex';
+});
+document.getElementById('cancelEnd').addEventListener('click', () => {
+    document.getElementById('endModal').style.display = 'none';
+});
+document.getElementById('confirmEnd').addEventListener('click', () => endSession());
+
+async function autoEndSession() {
+    addEventToLog('⏱ Target time reached! Generating report...', 'info');
+    await endSession();
+}
+
+async function endSession() {
+    isSessionActive = false;
+    clearInterval(analysisInterval);
+    document.getElementById('endModal').style.display = 'none';
+    document.getElementById('confirmEnd').textContent = 'Generating...';
+
+    try {
+        const res = await fetch('/Session/End', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: SESSION_ID })
+        });
+        const data = await res.json();
+        if (data.success) {
+            window.location.href = `/Report/Index?sessionId=${data.reportId}`;
+        } else {
+            console.error('End session error:', data.error);
+            window.location.href = `/Report/Index?sessionId=${SESSION_ID}`;
+        }
+    } catch(e) {
+        console.error('End session exception:', e);
+        window.location.href = `/Report/Index?sessionId=${SESSION_ID}`;
+    }
+}
+
+// Start everything
+initCamera();
+addEventToLog('✅ AI monitoring session started', 'info');
+</script>
+}

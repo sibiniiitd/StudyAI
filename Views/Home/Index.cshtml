@@ -1,0 +1,163 @@
+@{
+    ViewData["Title"] = "StudyAI Monitor";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="landing">
+    <div class="noise"></div>
+    
+    <header class="header">
+        <div class="logo">
+            <span class="logo-icon">◈</span>
+            <span>StudyAI</span>
+        </div>
+        <div class="header-tag">Powered by AI Vision</div>
+    </header>
+
+    <main class="hero">
+        <div class="hero-left">
+            <div class="badge">AI-POWERED STUDY MONITOR</div>
+            <h1 class="hero-title">
+                Study Smarter.<br>
+                <span class="accent">Focus Deeper.</span><br>
+                Achieve More.
+            </h1>
+            <p class="hero-desc">
+                Real-time AI monitoring tracks your focus, detects distractions, 
+                and delivers a comprehensive performance report after every session.
+            </p>
+            <div class="feature-chips">
+                <span class="chip">👁 Eye Tracking</span>
+                <span class="chip">📱 Phone Detection</span>
+                <span class="chip">📊 Focus Analytics</span>
+                <span class="chip">🤖 AI Insights</span>
+            </div>
+        </div>
+
+        <div class="hero-right">
+            <div class="setup-card">
+                <div class="setup-header">
+                    <span class="setup-icon">⚡</span>
+                    <h2>Start Your Session</h2>
+                </div>
+
+                <div class="form-group">
+                    <label>Your Name</label>
+                    <input type="text" id="studentName" placeholder="e.g. Arjun Sharma" />
+                </div>
+
+                <div class="form-group">
+                    <label>Subject / Topic</label>
+                    <input type="text" id="subjectName" placeholder="e.g. Data Structures" />
+                </div>
+
+                <div class="form-group">
+                    <label>Study Target</label>
+                    <div class="time-selector">
+                        <button class="time-btn active" data-minutes="60">1 hr</button>
+                        <button class="time-btn" data-minutes="90">1.5 hr</button>
+                        <button class="time-btn" data-minutes="120">2 hr</button>
+                        <button class="time-btn" data-minutes="180">3 hr</button>
+                        <button class="time-btn" data-minutes="custom" id="customBtn">Custom</button>
+                    </div>
+                    <input type="number" id="customTime" placeholder="Enter minutes" style="display:none; margin-top:8px;" min="10" max="480" />
+                </div>
+
+                <button class="start-btn" id="startBtn">
+                    <span class="btn-text">Begin Monitoring</span>
+                    <span class="btn-icon">→</span>
+                </button>
+
+                <p class="consent-note">
+                    🔒 Camera access required for AI monitoring. No data is stored or shared.
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <section class="stats-bar">
+        <div class="stat">
+            <span class="stat-num">94%</span>
+            <span class="stat-label">Focus Accuracy</span>
+        </div>
+        <div class="divider"></div>
+        <div class="stat">
+            <span class="stat-num">12+</span>
+            <span class="stat-label">Behaviors Tracked</span>
+        </div>
+        <div class="divider"></div>
+        <div class="stat">
+            <span class="stat-num">Real-time</span>
+            <span class="stat-label">AI Detection</span>
+        </div>
+        <div class="divider"></div>
+        <div class="stat">
+            <span class="stat-num">100%</span>
+            <span class="stat-label">Private & Secure</span>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+<script>
+let selectedMinutes = 60;
+
+document.querySelectorAll('.time-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        if (this.dataset.minutes === 'custom') {
+            document.getElementById('customTime').style.display = 'block';
+        } else {
+            selectedMinutes = parseInt(this.dataset.minutes);
+            document.getElementById('customTime').style.display = 'none';
+        }
+    });
+});
+
+document.getElementById('startBtn').addEventListener('click', async () => {
+    const name = document.getElementById('studentName').value.trim();
+    const subject = document.getElementById('subjectName').value.trim();
+    const customVal = document.getElementById('customTime').value;
+    
+    if (document.getElementById('customTime').style.display !== 'none' && customVal) {
+        selectedMinutes = parseInt(customVal);
+    }
+
+    if (!name || !subject) {
+        showError('Please enter your name and subject!');
+        return;
+    }
+
+    const btn = document.getElementById('startBtn');
+    btn.classList.add('loading');
+    btn.querySelector('.btn-text').textContent = 'Initializing...';
+
+    try {
+        const res = await fetch('/Session/Start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ studentName: name, subjectName: subject, targetMinutes: selectedMinutes })
+        });
+        const data = await res.json();
+        if (data.success) {
+            window.location.href = `/Session/Monitor?sessionId=${data.sessionId}`;
+        }
+    } catch(e) {
+        btn.classList.remove('loading');
+        btn.querySelector('.btn-text').textContent = 'Begin Monitoring';
+        showError('Failed to start session. Please try again.');
+    }
+});
+
+function showError(msg) {
+    const existing = document.querySelector('.error-toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.className = 'error-toast';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+</script>
+}
