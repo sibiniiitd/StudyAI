@@ -2,6 +2,8 @@
 
 A .NET 8 MVC application that uses AI to monitor study sessions in real-time via webcam and generates comprehensive performance reports.
 
+https://studyai-updq.onrender.com
+
 ---
 
 ## 🚀 Features
