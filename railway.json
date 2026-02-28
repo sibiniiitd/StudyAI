@@ -8,4 +8,4 @@
       "startCommand": "dotnet out/StudyMonitor.dll",
       "restartPolicyType": "ON_FAILURE"
     }
-  }
+}
